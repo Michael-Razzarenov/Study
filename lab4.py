@@ -1,70 +1,124 @@
-import csv
 import os
-
-'''
-Пусть дана некоторая директория (папка). Посчитайте количество файлов в данной директории (папке) и выведите на экран.
-
-Пусть дан файл data.csv, в котором содержится информация в соответствии с вариантом:
-
-Считайте информацию из файла в соответствующую структуру (словарь):
-
-2.1. Выведите информацию об объектах, отсортировав их по одному полю (строковому).
-
-2.2. Выведите информацию об объектах, отсортировав их по одному полю (числовому).
-
-2.3. Выведите информацию, соответствующую какому-либо критерию
-(например, для студентов - тех, у кого возраст больше какого-либо значения)
-
-Добавьте к программе возможность сохранения новых данных обратно в файл.
-'''
-
-# указывается путь к директории
-directory = r"C:\Users\ramis\PycharmProjects\Lab3\data"
-# Считаем колличество файлов
-files = len([f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
-print("1.Количество файлов в директории:", files)
+import csv
 
 
-def read_csv_file(file_path_local):
-    # функция считывает данные из файла и возвращает в форме списка словарей
-    data = []
-    with open(file_path_local, 'r', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=';')
-        for row in reader:
-            data.append(row)
-    return data
+def set_attributes(obj, attributes):
+    for key, value in attributes.items():
+        if isinstance(obj, dict):
+            obj[key] = value
+        else:
+            setattr(obj, key, value)
 
 
-def print_data(data_list_local):
-    # функция вывода информации из списка словарей
-    for row in data_list_local:
-        print(row)
+class DataProcessor:
+    def __init__(self, directory_path, filename, new_filename):
+        self.filename = filename
+        self.sorted_by_name = None
+        self.sorted_by_m = None
+        self.filtered_data = None
+        self.new_filename = new_filename
+        self.data = []
+        self.directory_path = directory_path
+        set_attributes(self, locals())
+        self.file_count = 0
 
+    def __iter__(self):
+        """Возвращает итератор для данных об осадках."""
+        self.current_index = 0
+        return self
 
-def write_csv(file_path_local, data):
-    # функция для записи данных из списка словарей в новый CSV файл
-    with open(file_path_local, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['№', 'дата', 'ФИО студента', 'размер стипендии', 'куда выдается справка']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=';')
-        writer.writeheader()
+    def __next__(self):
+        """Возвращает следующий элемент данных об осадках."""
+        if self.current_index >= len(self.data):
+            raise StopIteration
+        result = self.data[self.current_index]
+        self.current_index += 1
+        return result
+
+    def __repr__(self):
+        """Возвращает строковое представление объекта."""
+        return f"DataProcessor(data={self.data})"
+
+    def __getitem__(self, index):
+        """Возвращает элемент данных об осадках по индексу."""
+        return self.data[index]
+
+    def count_files(self):
+        for item in os.listdir(self.directory_path):
+            item_path = os.path.join(self.directory_path, item)
+            if os.path.isfile(item_path):
+                self.file_count += 1
+        print(f"Количество файлов в директории '{self.directory_path}': {self.file_count}")
+
+    def read_precipitation_data(self):
+        self.data = []
+        for row in self.csv_reader(self.filename):  # Используем генератор
+            try:
+                set_attributes(row, {
+                    '№': int(row['№']),
+                    'дата': row['дата'],
+                    'ФИО студента': (row['ФИО студента']),
+                    'размер стипендии': int(row['размер стипендии']),
+                    'куда выдается справка': (row['куда выдается справка']),
+                })
+                self.data.append(row)
+            except ValueError as e:
+                print(f"Пропущен некорректный ряд: {row}. Ошибка: {e}")
+
+    def csv_reader(self, filename):
+        """Генератор для чтения данных из CSV файла."""
+        with open(filename, 'r', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=';')
+            for row in reader:
+                yield row
+
+    def print_data(self, data):
         for row in data:
-            writer.writerow(row)
+            print(row)
+
+    def save_precipitation_data(self, filename, data):
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = ['№', 'дата', 'ФИО студента', 'размер стипендии', 'куда выдается справка']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
+
+    def process_data(self):
+        self.read_precipitation_data()
+
+        set_attributes(self, {
+            'sorted_by_name': sorted(self.data, key=lambda x: x["ФИО студента"].split()[1]),
+            'sorted_by_m': sorted(self.data, key=lambda x: int(x["размер стипендии"]), reverse=True),
+            'filtered_data': [row for row in self.data if int(row["размер стипендии"]) > 4000]
+        })
+
+        print("Сортировка по ФИО:")
+        self.print_data(self.sorted_by_name)
+
+        print("Сортировка по размеру стипендии:")
+        self.print_data(self.sorted_by_m)
+
+        print("Суденты со стипендией больше 4000:")
+        self.print_data(self.filtered_data)
+
+        processed_data = {
+            "Сортировка по ФИО": self.sorted_by_name,
+            "Сортировка по размеру стипендии": self.sorted_by_m,
+            "Суденты со стипендией больше 4000": self.filtered_data
+        }
+
+        with open(self.new_filename, 'w', newline='', encoding='utf-8') as csvfile:
+            for title, data in processed_data.items():
+                csvfile.write(f"{title}\n")
+                writer = csv.DictWriter(csvfile, fieldnames=data[0].keys() if data else [])
+                writer.writeheader()
+                writer.writerows(data)
+        print(f"Новые данные сохранены в файл '{self.new_filename}'")
 
 
-file_path = r"C:\Users\ramis\PycharmProjects\Lab3\data\data.csv"
-data_list = read_csv_file(file_path)
-
-sorted_data1 = sorted(data_list, key=lambda x: int(x["размер стипендии"]), reverse=True)
-print('\n', '2.1.Сортировка по размеру стипендии:')
-print_data(sorted_data1)
-
-sorted_data2 = sorted(data_list, key=lambda x: x["ФИО студента"].split()[1])
-print('\n', '2.2.Сортировка по ФИО:')
-print_data(sorted_data2)
-
-filtered_data = [row for row in data_list if int(row["размер стипендии"]) > 4000]
-print('\n', '2.3.Суденты со стипендией больше 4000:')
-print_data(filtered_data)
-
-new_file = os.path.join(os.path.dirname(file_path), 'filtered.csv')
-write_csv(new_file, filtered_data)
+if __name__ == "__main__":
+    processor = DataProcessor("C:\\Users\\ramis\\PycharmProjects\\Lab4\\data",
+                              "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\data.csv",
+                              "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\processed_data2.csv")
+    processor.count_files()
+    processor.process_data()
