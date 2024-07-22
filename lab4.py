@@ -1,5 +1,6 @@
 import os
 import csv
+import datetime
 
 
 def set_attributes(obj, attributes):
@@ -42,6 +43,11 @@ class DataProcessor:
     def __getitem__(self, index):
         """Возвращает элемент данных об осадках по индексу."""
         return self.data[index]
+
+    @staticmethod
+    def sort_by_date(data):
+        """Сортирует данные по дате."""
+        return sorted(data, key=lambda x: datetime.datetime.strptime(x['дата'], '%d.%m.%Y'))
 
     def count_files(self):
         for item in os.listdir(self.directory_path):
@@ -116,9 +122,39 @@ class DataProcessor:
         print(f"Новые данные сохранены в файл '{self.new_filename}'")
 
 
+class ScholarshipFilter(DataProcessor):
+    def __init__(self, directory_path, filename, new_filename, min_scholarship, max_scholarship):
+        super().__init__(directory_path, filename, new_filename)
+        self.min_scholarship = min_scholarship
+        self.max_scholarship = max_scholarship
+
+    def process_data(self):
+        super().process_data()
+        self.filtered_data = [row for row in self.data
+                              if self.min_scholarship <= int(row["размер стипендии"]) <= self.max_scholarship]
+
+        print(f"Суденты со стипендией от {self.min_scholarship} до {self.max_scholarship}:")
+        self.print_data(self.filtered_data)
+
+        processed_data = {
+            "Сортировка по ФИО": self.sorted_by_name,
+            "Сортировка по размеру стипендии": self.sorted_by_m,
+            f"Суденты со стипендией от {self.min_scholarship} до {self.max_scholarship}": self.filtered_data
+        }
+
+        with open(self.new_filename, 'w', newline='', encoding='utf-8') as csvfile:
+            for title, data in processed_data.items():
+                csvfile.write(f"{title}\n")
+                writer = csv.DictWriter(csvfile, fieldnames=data[0].keys() if data else [])
+                writer.writeheader()
+                writer.writerows(data)
+        print(f"Новые данные сохранены в файл '{self.new_filename}'")
+
+
 if __name__ == "__main__":
-    processor = DataProcessor("C:\\Users\\ramis\\PycharmProjects\\Lab4\\data",
-                              "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\data.csv",
-                              "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\processed_data2.csv")
+    processor = ScholarshipFilter("C:\\Users\\ramis\\PycharmProjects\\Lab4\\data",
+                                  "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\data.csv",
+                                  "C:\\Users\\ramis\\PycharmProjects\\Lab4\\data\\processed_data2.csv",
+                                  3000, 5000)
     processor.count_files()
     processor.process_data()
